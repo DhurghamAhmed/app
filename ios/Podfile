@@ -1,0 +1,22 @@
+# Uncomment this line to define a global platform for your project
+platform :ios, '13.0'
+
+# CocoaPods's specs repository is slow and happens to fail in Russia, so we use a mirror hosted in China.
+# We also include the official source list, because the mirror may be a little behind.
+source 'https://github.com/CocoaPods/Specs.git'
+
+ENV['FLUTTER_TARGET'] = 'ios'
+require_relative '../.flutter-plugins-dependencies'
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
+end

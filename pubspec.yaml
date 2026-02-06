@@ -1,0 +1,47 @@
+name: city_vape
+description: A SaaS-style shop management system for City Vape.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  
+  # State Management
+  provider: ^6.1.1
+  
+  # Firebase - Updated to latest versions
+  firebase_core: ^4.4.0
+  firebase_auth: ^6.1.4
+  cloud_firestore: ^6.1.2
+  
+  # Utilities
+  intl: ^0.20.2
+  google_fonts: ^8.0.0
+  uuid: ^4.4.0
+  animations: ^2.0.1
+  shared_preferences: ^2.2.2
+  
+  # Icons
+  iconsax: ^0.0.8
+  
+  # Scanner
+  mobile_scanner: ^7.1.4
+  image_picker: ^1.0.7
+  google_mlkit_barcode_scanning: ^0.14.2
+  image: ^4.1.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/

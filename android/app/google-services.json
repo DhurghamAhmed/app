@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "829446577088",
+    "project_id": "city-vape-app",
+    "storage_bucket": "city-vape-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:829446577088:android:76dc118a948708b2714625",
+        "android_client_info": {
+          "package_name": "com.idisr.cityvape"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDeIPngqVLLH3o6l4va3koWZ7sDA1trmm8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
