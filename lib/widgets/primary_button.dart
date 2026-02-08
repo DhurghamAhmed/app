@@ -208,6 +208,7 @@ class PrimaryButton extends StatelessWidget {
             fontSize: _fontSize,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.5,
+            color: color,
           ),
         ),
         if (trailingIcon != null) ...[
