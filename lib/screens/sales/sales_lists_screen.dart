@@ -736,10 +736,43 @@ class _SalesListsScreenState extends State<SalesListsScreen> {
   }
 
   // Edit Item Sheet
+  /// Convert Arabic numerals to English numerals (for edit dialog)
+  String _convertArabicToEnglishForEdit(String input) {
+    const arabic = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    const english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    String result = input;
+    for (int i = 0; i < arabic.length; i++) {
+      result = result.replaceAll(arabic[i], english[i]);
+    }
+    return result;
+  }
+
+  /// Extract only digits (supports both Arabic and English numerals) - for edit dialog
+  String _extractDigitsForEdit(String input) {
+    final converted = _convertArabicToEnglishForEdit(input);
+    return converted.replaceAll(RegExp(r'[^\d]'), '');
+  }
+
+  /// Format amount with thousand separators (for edit dialog)
+  String _formatAmountForEdit(double amount) {
+    if (amount <= 0) return '0';
+    final String amountStr = amount.toStringAsFixed(0);
+    final StringBuffer result = StringBuffer();
+    int count = 0;
+    for (int i = amountStr.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) {
+        result.write(',');
+      }
+      result.write(amountStr[i]);
+      count++;
+    }
+    return result.toString().split('').reversed.join();
+  }
+
   void _showEditItemSheet(SalesItemModel item, String listId) {
     final nameController = TextEditingController(text: item.name);
     final priceController =
-        TextEditingController(text: item.price.toStringAsFixed(0));
+        TextEditingController(text: _formatAmountForEdit(item.price));
     final quantityController =
         TextEditingController(text: item.quantity.toString());
     final formKey = GlobalKey<FormState>();
@@ -825,11 +858,27 @@ class _SalesListsScreenState extends State<SalesListsScreen> {
                             controller: priceController,
                             prefixIcon: Icons.payments_outlined,
                             keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              final rawNumber = _extractDigitsForEdit(value);
+                              if (rawNumber.isNotEmpty) {
+                                final formatted = _formatAmountForEdit(
+                                    double.parse(rawNumber));
+                                if (formatted != value) {
+                                  priceController.value = TextEditingValue(
+                                    text: formatted,
+                                    selection: TextSelection.collapsed(
+                                        offset: formatted.length),
+                                  );
+                                }
+                              }
+                            },
                             validator: (v) {
                               if (v?.isEmpty == true) {
                                 return context.l10n.translate('required');
                               }
-                              if (double.tryParse(v!) == null) {
+                              final rawNumber = _extractDigitsForEdit(v!);
+                              if (rawNumber.isEmpty ||
+                                  double.tryParse(rawNumber) == null) {
                                 return context.l10n.translate('invalid');
                               }
                               return null;
@@ -890,12 +939,13 @@ class _SalesListsScreenState extends State<SalesListsScreen> {
                                   setModalState(() => isLoading = true);
 
                                   try {
+                                    final rawEditPrice = _extractDigitsForEdit(
+                                        priceController.text.trim());
                                     await _salesService.updateSalesItem(
                                       itemId: item.id,
                                       listId: listId,
                                       name: nameController.text.trim(),
-                                      price: double.parse(
-                                          priceController.text.trim()),
+                                      price: double.parse(rawEditPrice),
                                       quantity: int.parse(
                                           quantityController.text.trim()),
                                     );
@@ -1814,6 +1864,40 @@ class _AddSaleItemSheetState extends State<_AddSaleItemSheet> {
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _quantityController =
       TextEditingController(text: '1');
+
+  /// Convert Arabic numerals to English numerals
+  String _convertArabicToEnglishNumbers(String input) {
+    const arabic = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    const english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    String result = input;
+    for (int i = 0; i < arabic.length; i++) {
+      result = result.replaceAll(arabic[i], english[i]);
+    }
+    return result;
+  }
+
+  /// Extract only digits (supports both Arabic and English numerals)
+  String _extractDigits(String input) {
+    final converted = _convertArabicToEnglishNumbers(input);
+    return converted.replaceAll(RegExp(r'[^\d]'), '');
+  }
+
+  /// Format amount with thousand separators
+  String _formatAmountWithCommas(double amount) {
+    if (amount <= 0) return '0';
+    final String amountStr = amount.toStringAsFixed(0);
+    final StringBuffer result = StringBuffer();
+    int count = 0;
+    for (int i = amountStr.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) {
+        result.write(',');
+      }
+      result.write(amountStr[i]);
+      count++;
+    }
+    return result.toString().split('').reversed.join();
+  }
+
   final FocusNode _nameFocusNode = FocusNode();
   final FocusNode _priceFocusNode = FocusNode();
   final FocusNode _quantityFocusNode = FocusNode();
@@ -1966,7 +2050,7 @@ class _AddSaleItemSheetState extends State<_AddSaleItemSheet> {
     setState(() {
       _selectedItem = item;
       _nameController.text = item.name;
-      _priceController.text = item.price.toStringAsFixed(0);
+      _priceController.text = _formatAmountWithCommas(item.price);
       _showSuggestions = false;
     });
 
@@ -2340,11 +2424,12 @@ class _AddSaleItemSheetState extends State<_AddSaleItemSheet> {
       }
 
       // Add the sales item
+      final rawPrice = _extractDigits(_priceController.text.trim());
       await widget.salesService.addSalesItem(
         listId: widget.salesList.id,
         userId: authProvider.userId!,
         name: _nameController.text.trim(),
-        price: double.parse(_priceController.text.trim()),
+        price: double.parse(rawPrice),
         quantity: quantity,
       );
 
@@ -2598,11 +2683,27 @@ class _AddSaleItemSheetState extends State<_AddSaleItemSheet> {
                       focusNode: _priceFocusNode,
                       prefixIcon: Icons.payments_outlined,
                       keyboardType: TextInputType.number,
+                      onChanged: (value) {
+                        final rawNumber = _extractDigits(value);
+                        if (rawNumber.isNotEmpty) {
+                          final formatted =
+                              _formatAmountWithCommas(double.parse(rawNumber));
+                          if (formatted != value) {
+                            _priceController.value = TextEditingValue(
+                              text: formatted,
+                              selection: TextSelection.collapsed(
+                                  offset: formatted.length),
+                            );
+                          }
+                        }
+                      },
                       validator: (v) {
                         if (v?.isEmpty == true) {
                           return context.l10n.translate('required');
                         }
-                        if (double.tryParse(v!) == null) {
+                        final rawNumber = _extractDigits(v!);
+                        if (rawNumber.isEmpty ||
+                            double.tryParse(rawNumber) == null) {
                           return context.l10n.translate('invalid');
                         }
                         return null;

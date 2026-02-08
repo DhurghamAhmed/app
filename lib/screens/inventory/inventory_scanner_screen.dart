@@ -9,6 +9,7 @@ import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart
     as mlkit;
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
+import 'dart:math';
 import 'package:intl/intl.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../core/theme/app_colors.dart';
@@ -21,6 +22,7 @@ import '../../widgets/primary_button.dart';
 import '../../models/product_model.dart';
 import '../../services/product_service.dart';
 import '../../providers/auth_provider.dart';
+import 'package:barcode_widget/barcode_widget.dart' as bw;
 
 class InventoryScannerScreen extends StatefulWidget {
   const InventoryScannerScreen({super.key});
@@ -30,6 +32,17 @@ class InventoryScannerScreen extends StatefulWidget {
 }
 
 class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
+  /// Convert Arabic/Eastern numerals to Western numerals
+  String _normalizeArabicNumbers(String input) {
+    const arabicNumerals = '٠١٢٣٤٥٦٧٨٩';
+    const westernNumerals = '0123456789';
+    String result = input;
+    for (int i = 0; i < arabicNumerals.length; i++) {
+      result = result.replaceAll(arabicNumerals[i], westernNumerals[i]);
+    }
+    return result;
+  }
+
   /// Format number with thousand separators
   String _formatWithCommas(double amount) {
     return NumberFormat('#,###', 'en_US').format(amount.toInt());
@@ -156,6 +169,21 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
                 onTap: () {
                   Navigator.pop(ctx);
                   _scanFromGallery();
+                },
+                isDark: isDark,
+              ),
+              const SizedBox(height: 12),
+
+              // Create custom barcode option
+              _buildScanOption(
+                context: context,
+                icon: Iconsax.add_circle,
+                title: context.l10n.translate('create_custom_barcode'),
+                subtitle: context.l10n.translate('create_custom_barcode_desc'),
+                color: AppColors.success,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showCreateCustomBarcodeSheet();
                 },
                 isDark: isDark,
               ),
@@ -583,10 +611,15 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final normalizedPrice =
+          _normalizeArabicNumbers(_priceController.text.trim());
+      final normalizedQty =
+          _normalizeArabicNumbers(_quantityController.text.trim());
+
       await _productService.addProduct(
         name: _nameController.text.trim(),
-        price: double.parse(_priceController.text.trim()),
-        quantity: int.parse(_quantityController.text.trim()),
+        price: double.parse(normalizedPrice),
+        quantity: int.parse(normalizedQty),
         barcodeId: _scannedBarcode!,
         userId: userId,
       );
@@ -605,7 +638,9 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
 
   /// Update product quantity
   Future<void> _updateQuantity() async {
-    final additionalQty = int.tryParse(_updateQuantityController.text.trim());
+    final normalizedQty =
+        _normalizeArabicNumbers(_updateQuantityController.text.trim());
+    final additionalQty = int.tryParse(normalizedQty);
     if (additionalQty == null || additionalQty <= 0) {
       if (mounted) {
         _showErrorSnackBar(context.l10n.translate('enter_valid_quantity'));
@@ -760,32 +795,6 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
                   ],
                 ),
               ),
-              if (_isCameraActive) ...[
-                GestureDetector(
-                  onTap: () => _scannerController?.toggleTorch(),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.surfaceDark
-                          : AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isDark
-                            ? AppColors.borderDark
-                            : AppColors.borderLight,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.flash_on_rounded,
-                      color: isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight,
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
           // Search bar directly under the app bar
@@ -800,18 +809,9 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(
           horizontal: AppConstants.screenPaddingHorizontal),
-      height: 320,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppConstants.cardRadius),
-        border: Border.all(
-          color: _isScanning
-              ? AppColors.primary
-              : (isDark ? AppColors.borderDark : AppColors.borderLight),
-          width: 2,
-        ),
-      ),
+      height: 300,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppConstants.cardRadius - 2),
+        borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
             // Camera view
@@ -821,10 +821,10 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
                 onDetect: _onBarcodeDetected,
               ),
 
-            // Enhanced overlay with dark mask around ROI
+            // Simple overlay with white corners
             _buildEnhancedScannerOverlay(isDark),
 
-            // Close button
+            // Close button (top right)
             Positioned(
               top: 12,
               right: 12,
@@ -842,116 +842,74 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
               ),
             ),
 
-            // Status indicator
-            if (_isLoading) _buildStatusIndicator(isDark),
-
-            // Scanning hint
+            // Flash button (top left)
             Positioned(
-              bottom: 16,
-              left: 0,
-              right: 0,
-              child: Center(
+              top: 12,
+              left: 12,
+              child: GestureDetector(
+                onTap: () => _scannerController?.toggleTorch(),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(20),
+                    color: Colors.black.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.center_focus_strong,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        context.l10n.translate('center_barcode_frame'),
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 12),
-                      ),
-                    ],
-                  ),
+                  child:
+                      const Icon(Icons.flash_on, color: Colors.white, size: 20),
                 ),
               ),
             ),
+
+            // Status indicator
+            if (_isLoading) _buildStatusIndicator(isDark),
           ],
         ),
       ),
     );
   }
 
-  /// Enhanced scanner overlay with dark mask around ROI
+  /// Simple scanner overlay with white rounded corner brackets only - NO dark overlay
   Widget _buildEnhancedScannerOverlay(bool isDark) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final double boxSize = constraints.maxWidth * 0.65;
+        final double boxSize = constraints.maxWidth * 0.7;
         final double left = (constraints.maxWidth - boxSize) / 2;
         final double top = (constraints.maxHeight - boxSize) / 2;
 
         return Stack(
           children: [
-            // Dark overlay with cutout
-            CustomPaint(
-              size: Size(constraints.maxWidth, constraints.maxHeight),
-              painter: _ScannerOverlayPainter(
-                boxSize: boxSize,
-                left: left,
-                top: top,
-                borderColor:
-                    _isScanning ? AppColors.primary : AppColors.success,
-              ),
-            ),
+            // NO dark overlay - just the corners
 
-            // Scanning box border and corners
+            // White rounded corner brackets only
             Positioned(
               left: left,
               top: top,
-              child: Container(
+              child: SizedBox(
                 width: boxSize,
                 height: boxSize,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: _isScanning ? AppColors.primary : AppColors.success,
-                    width: 2,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
                 child: Stack(
                   children: [
+                    // Top-left corner
                     Positioned(
-                        top: 0, left: 0, child: _buildCorner(true, true)),
+                        top: 0,
+                        left: 0,
+                        child: _buildRoundedCorner(true, true)),
+                    // Top-right corner
                     Positioned(
-                        top: 0, right: 0, child: _buildCorner(true, false)),
+                        top: 0,
+                        right: 0,
+                        child: _buildRoundedCorner(true, false)),
+                    // Bottom-left corner
                     Positioned(
-                        bottom: 0, left: 0, child: _buildCorner(false, true)),
+                        bottom: 0,
+                        left: 0,
+                        child: _buildRoundedCorner(false, true)),
+                    // Bottom-right corner
                     Positioned(
-                        bottom: 0, right: 0, child: _buildCorner(false, false)),
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isScanning
-                                ? Icons.qr_code_scanner
-                                : Icons.check_circle,
-                            color:
-                                _isScanning ? Colors.white : AppColors.success,
-                            size: 40,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _isScanning
-                                ? context.l10n.translate('align_barcode_here')
-                                : context.l10n.translate('scanned'),
-                            style:
-                                AppTextStyles.labelMedium(color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
+                        bottom: 0,
+                        right: 0,
+                        child: _buildRoundedCorner(false, false)),
                   ],
                 ),
               ),
@@ -962,17 +920,22 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
     );
   }
 
-  Widget _buildCorner(bool isTop, bool isLeft) {
-    final color = _isScanning ? AppColors.primary : AppColors.success;
-    return Container(
-      width: 30,
-      height: 30,
-      decoration: BoxDecoration(
-        border: Border(
-          top: isTop ? BorderSide(color: color, width: 4) : BorderSide.none,
-          bottom: !isTop ? BorderSide(color: color, width: 4) : BorderSide.none,
-          left: isLeft ? BorderSide(color: color, width: 4) : BorderSide.none,
-          right: !isLeft ? BorderSide(color: color, width: 4) : BorderSide.none,
+  /// Rounded white corner bracket
+  Widget _buildRoundedCorner(bool isTop, bool isLeft) {
+    const double size = 40;
+    const double thickness = 4;
+    const double radius = 12;
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _RoundedCornerPainter(
+          isTop: isTop,
+          isLeft: isLeft,
+          color: Colors.white,
+          thickness: thickness,
+          radius: radius,
         ),
       ),
     );
@@ -1639,6 +1602,24 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
               // Actions
               Row(
                 children: [
+                  // Barcode button - LEFT side
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: IconButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showBarcodeDialog(product, isDark);
+                      },
+                      icon: const Icon(Iconsax.barcode,
+                          color: AppColors.secondary),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: PrimaryButton(
                       text: context.l10n.translate('update_stock'),
@@ -1763,7 +1744,9 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
                   text: context.l10n.translate('update_stock'),
                   leadingIcon: Icons.add,
                   onPressed: () async {
-                    final qty = int.tryParse(quantityController.text.trim());
+                    final normalizedQty =
+                        _normalizeArabicNumbers(quantityController.text.trim());
+                    final qty = int.tryParse(normalizedQty);
                     if (qty == null || qty <= 0) {
                       if (mounted) {
                         _showErrorSnackBar(
@@ -1998,6 +1981,526 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
     );
   }
 
+  // ============================================================
+  // BARCODE TYPE DETECTION & RENDERING HELPERS
+  // ============================================================
+
+  /// Detect the best barcode type based on the data content
+  bw.Barcode _detectBarcodeType(String data) {
+    final trimmed = data.trim();
+
+    // Custom barcodes (CB-xxx) → QR Code (supports all characters)
+    if (trimmed.startsWith('CB-')) {
+      return bw.Barcode.qrCode();
+    }
+
+    // Check if data is purely numeric
+    final isNumeric = RegExp(r'^\d+$').hasMatch(trimmed);
+
+    if (isNumeric) {
+      switch (trimmed.length) {
+        case 8:
+          // EAN-8 format
+          return bw.Barcode.ean8();
+        case 12:
+          // UPC-A format
+          return bw.Barcode.upcA();
+        case 13:
+          // EAN-13 format
+          return bw.Barcode.ean13();
+        case 14:
+          // ITF-14 format
+          return bw.Barcode.itf14();
+        default:
+          if (trimmed.length <= 20) {
+            // Short numeric → Code128 (handles any length)
+            return bw.Barcode.code128();
+          }
+          // Long numeric → QR Code
+          return bw.Barcode.qrCode();
+      }
+    }
+
+    // Contains letters or special characters
+    // If short alphanumeric, try Code128
+    if (trimmed.length <= 30 && RegExp(r'^[\x00-\x7F]+$').hasMatch(trimmed)) {
+      return bw.Barcode.code128();
+    }
+
+    // Default: QR Code (supports everything including Unicode)
+    return bw.Barcode.qrCode();
+  }
+
+  /// Check if the barcode should be displayed as square (QR/DataMatrix)
+  bool _isSquareBarcode(String data) {
+    final barcodeType = _detectBarcodeType(data);
+    return barcodeType == bw.Barcode.qrCode() ||
+        barcodeType == bw.Barcode.dataMatrix();
+  }
+
+  /// Build the barcode widget with correct type and dimensions
+  Widget _buildBarcodeImage(String data,
+      {double maxWidth = 280, double linearHeight = 100, double qrSize = 200}) {
+    final barcodeType = _detectBarcodeType(data);
+    final isSquare = _isSquareBarcode(data);
+
+    return bw.BarcodeWidget(
+      barcode: barcodeType,
+      data: data,
+      width: isSquare ? qrSize : maxWidth,
+      height: isSquare ? qrSize : linearHeight,
+      drawText: !isSquare, // Only show text for linear barcodes
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: Colors.black,
+        letterSpacing: 1.5,
+      ),
+      errorBuilder: (context, error) {
+        // Fallback: if the detected type fails, use QR code
+        return bw.BarcodeWidget(
+          barcode: bw.Barcode.qrCode(),
+          data: data,
+          width: qrSize,
+          height: qrSize,
+          drawText: false,
+        );
+      },
+    );
+  }
+
+  /// Show barcode dialog with actual visual barcode
+  void _showBarcodeDialog(ProductModel product, bool isDark) {
+    final isSquare = _isSquareBarcode(product.barcodeId);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color:
+                        isDark ? AppColors.borderDark : AppColors.borderLight,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Title
+              Text(
+                context.l10n.translate('product_barcode'),
+                style: AppTextStyles.headingSmall(),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                product.name,
+                style: AppTextStyles.bodyMedium(
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Barcode visual display
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color:
+                        isDark ? AppColors.borderDark : AppColors.borderLight,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // Product name above barcode
+                    Text(
+                      product.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Actual barcode image - auto-detected type
+                    _buildBarcodeImage(
+                      product.barcodeId,
+                      maxWidth: 280,
+                      linearHeight: 100,
+                      qrSize: 200,
+                    ),
+
+                    // Show barcode ID text below QR codes
+                    if (isSquare) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        product.barcodeId,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black54,
+                          letterSpacing: 1.0,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+
+                    // Price and quantity info
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.secondary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'IQD ${_formatWithCommas(product.price)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${context.l10n.translate('stock')}: ${product.quantity}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.success,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Close button
+              PrimaryButton(
+                text: context.l10n.translate('close'),
+                variant: ButtonVariant.outlined,
+                leadingIcon: Icons.close,
+                onPressed: () => Navigator.pop(ctx),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Generate a unique custom barcode ID
+  String _generateCustomBarcodeId() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = Random();
+    final chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final suffix =
+        List.generate(4, (_) => chars[random.nextInt(chars.length)]).join();
+    return 'CB-$timestamp-$suffix';
+  }
+
+  /// Show create custom barcode bottom sheet
+  void _showCreateCustomBarcodeSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final generatedBarcode = _generateCustomBarcodeId();
+    final customNameController = TextEditingController();
+    final customPriceController = TextEditingController();
+    final customQuantityController = TextEditingController(text: '1');
+    final customFormKey = GlobalKey<FormState>();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Form(
+                key: customFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle bar
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.borderDark
+                              : AppColors.borderLight,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Title
+                    Text(
+                      context.l10n.translate('create_custom_barcode'),
+                      style: AppTextStyles.headingSmall(),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      context.l10n.translate('enter_product_details'),
+                      style: AppTextStyles.bodyMedium(
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Generated Barcode Display with visual barcode
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: AppColors.success.withValues(alpha: 0.3)),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color:
+                                      AppColors.success.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Iconsax.barcode,
+                                    color: AppColors.success, size: 24),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      context.l10n
+                                          .translate('generated_barcode'),
+                                      style: AppTextStyles.labelSmall(
+                                          color: AppColors.success),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      generatedBarcode,
+                                      style: AppTextStyles.titleMedium(
+                                          color: AppColors.success),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          // Visual barcode - QR code for custom barcodes
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: _buildBarcodeImage(
+                                generatedBarcode,
+                                maxWidth: 220,
+                                linearHeight: 70,
+                                qrSize: 180,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Product Name
+                    InputField(
+                      label: context.l10n.translate('product_name'),
+                      hint: context.l10n.translate('enter_product_name'),
+                      controller: customNameController,
+                      prefixIcon: Icons.inventory_2_outlined,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return context.l10n
+                              .translate('please_enter_product_name');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Price
+                    InputField(
+                      label: context.l10n.translate('price_iqd'),
+                      hint: context.l10n.translate('enter_price'),
+                      controller: customPriceController,
+                      prefixIcon: Icons.attach_money,
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return context.l10n.translate('please_enter_price');
+                        }
+                        final normalized =
+                            _normalizeArabicNumbers(value.trim());
+                        if (double.tryParse(normalized) == null) {
+                          return context.l10n
+                              .translate('please_enter_valid_number');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Quantity
+                    InputField(
+                      label: context.l10n.translate('initial_quantity'),
+                      hint: context.l10n.translate('enter_quantity'),
+                      controller: customQuantityController,
+                      prefixIcon: Icons.numbers,
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return context.l10n
+                              .translate('please_enter_quantity');
+                        }
+                        final normalized =
+                            _normalizeArabicNumbers(value.trim());
+                        if (int.tryParse(normalized) == null) {
+                          return context.l10n
+                              .translate('please_enter_valid_number');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Save Button
+                    StatefulBuilder(
+                      builder: (btnContext, setButtonState) {
+                        bool isSaving = false;
+                        return PrimaryButton(
+                          text: btnContext.l10n.translate('create_and_save'),
+                          leadingIcon: Iconsax.tick_circle,
+                          isLoading: isSaving,
+                          onPressed: () async {
+                            if (!customFormKey.currentState!.validate()) return;
+
+                            final authProvider = Provider.of<AuthProvider>(
+                                btnContext,
+                                listen: false);
+                            final userId = authProvider.userId;
+
+                            if (userId == null) {
+                              _showErrorSnackBar(btnContext.l10n
+                                  .translate('please_login_add_products'));
+                              return;
+                            }
+
+                            // Capture navigator and translated strings before async gap
+                            final navigator = Navigator.of(ctx);
+                            final successMsg = btnContext.l10n
+                                .translate('product_created_successfully');
+                            final errorMsg = btnContext.l10n
+                                .translate('failed_create_product');
+
+                            setButtonState(() => isSaving = true);
+
+                            try {
+                              final normalizedPrice = _normalizeArabicNumbers(
+                                  customPriceController.text.trim());
+                              final normalizedQty = _normalizeArabicNumbers(
+                                  customQuantityController.text.trim());
+
+                              await _productService.addProduct(
+                                name: customNameController.text.trim(),
+                                price: double.parse(normalizedPrice),
+                                quantity: int.parse(normalizedQty),
+                                barcodeId: generatedBarcode,
+                                userId: userId,
+                              );
+
+                              if (mounted) {
+                                navigator.pop();
+                                _showSuccessSnackBar(successMsg);
+                              }
+                            } catch (e) {
+                              setButtonState(() => isSaving = false);
+                              if (mounted) {
+                                _showErrorSnackBar(errorMsg);
+                              }
+                            }
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildAddProductForm(bool isDark) {
     return Column(
       children: [
@@ -2065,7 +2568,8 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
                     if (value == null || value.trim().isEmpty) {
                       return context.l10n.translate('please_enter_price');
                     }
-                    if (double.tryParse(value.trim()) == null) {
+                    final normalized = _normalizeArabicNumbers(value.trim());
+                    if (double.tryParse(normalized) == null) {
                       return context.l10n
                           .translate('please_enter_valid_number');
                     }
@@ -2083,7 +2587,8 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
                     if (value == null || value.trim().isEmpty) {
                       return context.l10n.translate('please_enter_quantity');
                     }
-                    if (int.tryParse(value.trim()) == null) {
+                    final normalized = _normalizeArabicNumbers(value.trim());
+                    if (int.tryParse(normalized) == null) {
                       return context.l10n
                           .translate('please_enter_valid_number');
                     }
@@ -2114,49 +2619,66 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
   }
 }
 
-/// Custom painter for scanner overlay with dark mask around ROI
-class _ScannerOverlayPainter extends CustomPainter {
-  final double boxSize;
-  final double left;
-  final double top;
-  final Color borderColor;
+/// Rounded corner painter - draws L-shaped corner with rounded edge
+class _RoundedCornerPainter extends CustomPainter {
+  final bool isTop;
+  final bool isLeft;
+  final Color color;
+  final double thickness;
+  final double radius;
 
-  _ScannerOverlayPainter({
-    required this.boxSize,
-    required this.left,
-    required this.top,
-    required this.borderColor,
+  _RoundedCornerPainter({
+    required this.isTop,
+    required this.isLeft,
+    required this.color,
+    required this.thickness,
+    required this.radius,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.5)
-      ..style = PaintingStyle.fill;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = thickness
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
-    // Create path for the dark overlay
-    final Path path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final path = Path();
 
-    // Create cutout for the scanning box
-    final RRect cutout = RRect.fromRectAndRadius(
-      Rect.fromLTWH(left, top, boxSize, boxSize),
-      const Radius.circular(16),
-    );
+    if (isTop && isLeft) {
+      // Top-left corner ╭
+      path.moveTo(0, size.height);
+      path.lineTo(0, radius);
+      path.quadraticBezierTo(0, 0, radius, 0);
+      path.lineTo(size.width, 0);
+    } else if (isTop && !isLeft) {
+      // Top-right corner ╮
+      path.moveTo(0, 0);
+      path.lineTo(size.width - radius, 0);
+      path.quadraticBezierTo(size.width, 0, size.width, radius);
+      path.lineTo(size.width, size.height);
+    } else if (!isTop && isLeft) {
+      // Bottom-left corner ╰
+      path.moveTo(0, 0);
+      path.lineTo(0, size.height - radius);
+      path.quadraticBezierTo(0, size.height, radius, size.height);
+      path.lineTo(size.width, size.height);
+    } else {
+      // Bottom-right corner ╯
+      path.moveTo(0, size.height);
+      path.lineTo(size.width - radius, size.height);
+      path.quadraticBezierTo(
+          size.width, size.height, size.width, size.height - radius);
+      path.lineTo(size.width, 0);
+    }
 
-    // Subtract the cutout from the overlay
-    final Path cutoutPath = Path()..addRRect(cutout);
-    final Path finalPath =
-        Path.combine(PathOperation.difference, path, cutoutPath);
-
-    canvas.drawPath(finalPath, paint);
+    canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _ScannerOverlayPainter oldDelegate) {
-    return oldDelegate.boxSize != boxSize ||
-        oldDelegate.left != left ||
-        oldDelegate.top != top ||
-        oldDelegate.borderColor != borderColor;
+  bool shouldRepaint(covariant _RoundedCornerPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.thickness != thickness ||
+        oldDelegate.radius != radius;
   }
 }

@@ -41,8 +41,8 @@ class DefaultFirebaseOptions {
 
   // iOS configuration - update these values when you add iOS to Firebase
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDeIPngqVLLH3o6l4va3koWZ7sDA1trmm8',
-    appId: '1:829446577088:ios:YOUR_IOS_APP_ID',
+    apiKey: 'AIzaSyBpKC82ONxIQXk_GsIdn10usipnCntmhaM',
+    appId: '1:829446577088:ios:d89f44805744df30714625',
     messagingSenderId: '829446577088',
     projectId: 'city-vape-app',
     storageBucket: 'city-vape-app.firebasestorage.app',

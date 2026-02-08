@@ -1,0 +1,214 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ══════════════════════════════════════════════════════
+    // 🔒 DENY ALL BY DEFAULT
+    // ══════════════════════════════════════════════════════
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // 👤 USERS COLLECTION
+    // ══════════════════════════════════════════════════════
+    // Users can only read/write their own profile
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['fullName', 'email', 'createdAt'])
+        && request.resource.data.fullName is string
+        && request.resource.data.email is string
+        && request.resource.data.fullName.size() > 0
+        && request.resource.data.fullName.size() <= 100
+        && request.resource.data.email.size() > 0;
+      allow update: if request.auth != null && request.auth.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'createdAt']);
+      allow delete: if false; // Users cannot delete their own profile
+    }
+
+    // ══════════════════════════════════════════════════════
+    // 📦 PRODUCTS COLLECTION (Inventory)
+    // ══════════════════════════════════════════════════════
+    // Users can only access their own products
+    match /products/{productId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['name', 'price', 'quantity', 'barcodeId', 'userId'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 200
+        && request.resource.data.price is number
+        && request.resource.data.price >= 0
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity >= 0
+        && request.resource.data.barcodeId is string
+        && request.resource.data.barcodeId.size() > 0;
+
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'createdAt'])
+        && (
+          // Allow updating name, price, quantity
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || request.resource.data.name is string)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['price']) || (request.resource.data.price is number && request.resource.data.price >= 0))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['quantity']) || (request.resource.data.quantity is int && request.resource.data.quantity >= 0))
+        );
+
+      allow delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // 👥 DEBTORS COLLECTION
+    // ══════════════════════════════════════════════════════
+    // Users can only access their own debtors
+    match /debtors/{debtorId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'name', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 200;
+
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'createdAt']);
+
+      allow delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // 📋 DEBT ITEMS COLLECTION
+    // ══════════════════════════════════════════════════════
+    // Users can access debt items linked to their debtors
+    match /debt_items/{itemId} {
+      allow read: if request.auth != null
+        && (resource.data.addedByUserId == request.auth.uid
+            || isDebtorOwner(resource.data.debtorId));
+
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(['debtorId', 'product', 'amount', 'createdAt'])
+        && request.resource.data.product is string
+        && request.resource.data.amount is number
+        && request.resource.data.amount >= 0;
+
+      allow update: if request.auth != null
+        && (resource.data.addedByUserId == request.auth.uid
+            || isDebtorOwner(resource.data.debtorId));
+
+      allow delete: if request.auth != null
+        && (resource.data.addedByUserId == request.auth.uid
+            || isDebtorOwner(resource.data.debtorId));
+    }
+
+    // Helper function: Check if user owns the debtor
+    function isDebtorOwner(debtorId) {
+      return get(/databases/$(database)/documents/debtors/$(debtorId)).data.userId == request.auth.uid;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // 💰 TRANSACTIONS COLLECTION
+    // ══════════════════════════════════════════════════════
+    // Users can only access their own transactions
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'type', 'amount', 'date'])
+        && request.resource.data.type is string
+        && request.resource.data.type in ['sale', 'debt', 'payment', 'edit']
+        && request.resource.data.amount is number
+        && request.resource.data.amount >= 0;
+
+      allow update: if false; // Transactions are immutable
+      
+      allow delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // 🛒 SALES LISTS COLLECTION
+    // ══════════════════════════════════════════════════════
+    // Users can only access their own sales lists
+    match /sales_lists/{listId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'isOpen', 'dateOpened', 'totalAmount'])
+        && request.resource.data.isOpen is bool
+        && request.resource.data.totalAmount is number
+        && request.resource.data.totalAmount >= 0;
+
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'dateOpened']);
+
+      allow delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // 🧾 SALES ITEMS COLLECTION
+    // ══════════════════════════════════════════════════════
+    // Users can access sales items linked to their sales lists
+    match /sales_items/{itemId} {
+      allow read: if request.auth != null
+        && isSalesListOwner(resource.data.listId);
+
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(['listId', 'name', 'price', 'quantity', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.price is number
+        && request.resource.data.price >= 0
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity > 0
+        && isSalesListOwner(request.resource.data.listId);
+
+      allow update: if request.auth != null
+        && isSalesListOwner(resource.data.listId);
+
+      allow delete: if request.auth != null
+        && isSalesListOwner(resource.data.listId);
+    }
+
+    // Helper function: Check if user owns the sales list
+    function isSalesListOwner(listId) {
+      return get(/databases/$(database)/documents/sales_lists/$(listId)).data.userId == request.auth.uid;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // 📊 MONTHLY SALES COLLECTION
+    // ══════════════════════════════════════════════════════
+    // Users can only access their own monthly sales records
+    match /monthly_sales/{docId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'year', 'month', 'monthKey', 'totalAmount'])
+        && request.resource.data.totalAmount is number
+        && request.resource.data.totalAmount >= 0;
+
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'year', 'month', 'monthKey', 'createdAt']);
+
+      allow delete: if false; // Monthly sales records should not be deleted
+    }
+  }
+}

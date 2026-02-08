@@ -27,6 +27,39 @@ class _AddDebtorScreenState extends State<AddDebtorScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  /// Convert Arabic numerals to English numerals
+  String _convertArabicToEnglishNumbers(String input) {
+    const arabic = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    const english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    String result = input;
+    for (int i = 0; i < arabic.length; i++) {
+      result = result.replaceAll(arabic[i], english[i]);
+    }
+    return result;
+  }
+
+  /// Extract only digits (supports both Arabic and English numerals)
+  String _extractDigits(String input) {
+    final converted = _convertArabicToEnglishNumbers(input);
+    return converted.replaceAll(RegExp(r'[^\d]'), '');
+  }
+
+  /// Format amount with thousand separators
+  String _formatAmountWithCommas(double amount) {
+    if (amount <= 0) return '0';
+    final String amountStr = amount.toStringAsFixed(0);
+    final StringBuffer result = StringBuffer();
+    int count = 0;
+    for (int i = amountStr.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) {
+        result.write(',');
+      }
+      result.write(amountStr[i]);
+      count++;
+    }
+    return result.toString().split('').reversed.join();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -265,14 +298,14 @@ class _AddDebtorScreenState extends State<AddDebtorScreen> {
     );
   }
 
-  void _showAddDebtorDialog(BuildContext context) {
+  void _showAddDebtorDialog(BuildContext parentContext) {
     final nameController = TextEditingController();
     final productController = TextEditingController();
     final amountController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
-      context: context,
+      context: parentContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
@@ -340,11 +373,30 @@ class _AddDebtorScreenState extends State<AddDebtorScreen> {
                         controller: amountController,
                         prefixIcon: Icons.attach_money,
                         keyboardType: TextInputType.number,
-                        validator: (v) => v?.isEmpty == true
-                            ? context.l10n.translate('amount_required')
-                            : (double.tryParse(v!) == null
-                                ? context.l10n.translate('invalid_amount')
-                                : null)),
+                        onChanged: (value) {
+                          final rawNumber = _extractDigits(value);
+                          if (rawNumber.isNotEmpty) {
+                            final formatted = _formatAmountWithCommas(
+                                double.parse(rawNumber));
+                            if (formatted != value) {
+                              amountController.value = TextEditingValue(
+                                text: formatted,
+                                selection: TextSelection.collapsed(
+                                    offset: formatted.length),
+                              );
+                            }
+                          }
+                        },
+                        validator: (v) {
+                          if (v?.isEmpty == true)
+                            return context.l10n.translate('amount_required');
+                          final rawNumber = _extractDigits(v!);
+                          if (rawNumber.isEmpty ||
+                              double.tryParse(rawNumber) == null) {
+                            return context.l10n.translate('invalid_amount');
+                          }
+                          return null;
+                        }),
                     const SizedBox(height: 24),
                     PrimaryButton(
                       text: context.l10n.translate('add_debtor'),
@@ -358,18 +410,114 @@ class _AddDebtorScreenState extends State<AddDebtorScreen> {
                               name: nameController.text.trim(),
                               addedByUserName:
                                   authProvider.userModel?.fullName);
+                          final rawAmount =
+                              _extractDigits(amountController.text.trim());
                           await _debtorService.addDebtItem(
                               debtorId: debtor.id,
                               userId: authProvider.userId!,
                               product: productController.text.trim(),
-                              amount:
-                                  double.parse(amountController.text.trim()),
+                              amount: double.parse(rawAmount),
                               debtorName: debtor.name,
                               addedByUserName:
                                   authProvider.userModel?.fullName);
-                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                            // Show success notification
+                            final locale =
+                                Localizations.localeOf(parentContext);
+                            final isArabic = locale.languageCode == 'ar';
+                            final successMsg = isArabic
+                                ? 'تمت إضافة المديون "${nameController.text.trim()}" بنجاح'
+                                : 'Debtor "${nameController.text.trim()}" added successfully';
+
+                            ScaffoldMessenger.of(parentContext).showSnackBar(
+                              SnackBar(
+                                content: Row(
+                                  children: [
+                                    const Icon(Icons.check_circle_rounded,
+                                        color: Colors.white, size: 20),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: Text(successMsg)),
+                                  ],
+                                ),
+                                backgroundColor: AppColors.success,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
                         } catch (e) {
                           setModalState(() => isLoading = false);
+                          if (e.toString().contains('DEBTOR_EXISTS') &&
+                              ctx.mounted) {
+                            final debtorName = nameController.text.trim();
+                            final locale = Localizations.localeOf(ctx);
+                            final isArabic = locale.languageCode == 'ar';
+                            final errorMsg = isArabic
+                                ? 'يوجد مدين بهذا الاسم بالفعل!'
+                                : 'A debtor with this name already exists!';
+                            final okBtn = isArabic ? 'موافق' : 'OK';
+
+                            showDialog(
+                              context: ctx,
+                              builder: (dialogCtx) {
+                                final isDarkDialog =
+                                    Theme.of(dialogCtx).brightness ==
+                                        Brightness.dark;
+                                return AlertDialog(
+                                  backgroundColor: isDarkDialog
+                                      ? AppColors.surfaceDark
+                                      : AppColors.surfaceLight,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16)),
+                                  icon: Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning
+                                          .withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.person_off_rounded,
+                                        color: AppColors.warning, size: 28),
+                                  ),
+                                  title: Text(
+                                    errorMsg,
+                                    style: AppTextStyles.titleMedium(),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  content: Text(
+                                    '"$debtorName"',
+                                    style: AppTextStyles.bodyMedium(
+                                      color: isDarkDialog
+                                          ? AppColors.textSecondaryDark
+                                          : AppColors.textSecondaryLight,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  actionsAlignment: MainAxisAlignment.center,
+                                  actions: [
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(dialogCtx),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.primary,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 32, vertical: 12),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12)),
+                                      ),
+                                      child: Text(okBtn),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          }
                         }
                       },
                     ),
@@ -453,11 +601,11 @@ class _DebtorCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                // Items count only
+                // Date only
                 Row(
                   children: [
                     Icon(
-                      Icons.shopping_bag_outlined,
+                      Icons.calendar_today_outlined,
                       size: 12,
                       color: isDark
                           ? AppColors.textTertiaryDark
@@ -465,7 +613,7 @@ class _DebtorCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${debtor.itemCount} ${debtor.itemCount == 1 ? context.l10n.translate('item') : context.l10n.translate('items')}',
+                      DateFormat('dd/MM/yyyy').format(debtor.createdAt),
                       style: AppTextStyles.caption(
                         color: isDark
                             ? AppColors.textTertiaryDark
@@ -527,6 +675,23 @@ class DebtorDetailsScreen extends StatefulWidget {
 
   @override
   State<DebtorDetailsScreen> createState() => _DebtorDetailsScreenState();
+}
+
+/// Static helper function to convert Arabic numerals to English
+String _convertArabicToEnglishStatic(String input) {
+  const arabic = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  const english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+  String result = input;
+  for (int i = 0; i < arabic.length; i++) {
+    result = result.replaceAll(arabic[i], english[i]);
+  }
+  return result;
+}
+
+/// Static helper function to extract digits (supports Arabic and English)
+String _extractDigitsStatic(String input) {
+  final converted = _convertArabicToEnglishStatic(input);
+  return converted.replaceAll(RegExp(r'[^\d]'), '');
 }
 
 class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
@@ -705,7 +870,7 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                                       Text(
                                         context.l10n.translate('total_debt'),
                                         style: TextStyle(
-                                          fontSize: 9,
+                                          fontSize: 10,
                                           fontWeight: FontWeight.w400,
                                           color: Colors.white
                                               .withValues(alpha: 0.7),
@@ -720,7 +885,7 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                                           Text(
                                             'IQD ',
                                             style: TextStyle(
-                                              fontSize: 10,
+                                              fontSize: 11,
                                               fontWeight: FontWeight.w500,
                                               color: Colors.white
                                                   .withValues(alpha: 0.7),
@@ -730,7 +895,7 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                                             _formatFullAmount(
                                                 currentDebtor.amount),
                                             style: const TextStyle(
-                                              fontSize: 18,
+                                              fontSize: 19,
                                               fontWeight: FontWeight.w700,
                                               color: Colors.white,
                                               letterSpacing: -0.5,
@@ -760,7 +925,7 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                                         children: [
                                           Icon(
                                             Icons.shopping_bag_outlined,
-                                            size: 11,
+                                            size: 12,
                                             color: Colors.white
                                                 .withValues(alpha: 0.7),
                                           ),
@@ -768,7 +933,7 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                                           Text(
                                             '${currentDebtor.itemCount} ${context.l10n.translate('items')}',
                                             style: TextStyle(
-                                              fontSize: 10,
+                                              fontSize: 11,
                                               fontWeight: FontWeight.w400,
                                               color: Colors.white
                                                   .withValues(alpha: 0.7),
@@ -783,7 +948,7 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                                         children: [
                                           Icon(
                                             Icons.person_outline_rounded,
-                                            size: 11,
+                                            size: 12,
                                             color: Colors.white
                                                 .withValues(alpha: 0.7),
                                           ),
@@ -793,7 +958,31 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                                                 context.l10n
                                                     .translate('unknown'),
                                             style: TextStyle(
-                                              fontSize: 10,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w400,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.7),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      // Date added
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.calendar_today_outlined,
+                                            size: 12,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.7),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            DateFormat('dd/MM/yyyy').format(
+                                                currentDebtor.createdAt),
+                                            style: TextStyle(
+                                              fontSize: 11,
                                               fontWeight: FontWeight.w400,
                                               color: Colors.white
                                                   .withValues(alpha: 0.7),
@@ -1520,11 +1709,30 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                         controller: amountController,
                         prefixIcon: Icons.attach_money,
                         keyboardType: TextInputType.number,
-                        validator: (v) => v?.isEmpty == true
-                            ? context.l10n.translate('required')
-                            : (double.tryParse(v!) == null
-                                ? context.l10n.translate('invalid')
-                                : null)),
+                        onChanged: (value) {
+                          final rawNumber = _extractDigitsStatic(value);
+                          if (rawNumber.isNotEmpty) {
+                            final formatted =
+                                _formatFullAmount(double.parse(rawNumber));
+                            if (formatted != value) {
+                              amountController.value = TextEditingValue(
+                                text: formatted,
+                                selection: TextSelection.collapsed(
+                                    offset: formatted.length),
+                              );
+                            }
+                          }
+                        },
+                        validator: (v) {
+                          if (v?.isEmpty == true)
+                            return context.l10n.translate('required');
+                          final rawNumber = _extractDigitsStatic(v!);
+                          if (rawNumber.isEmpty ||
+                              double.tryParse(rawNumber) == null) {
+                            return context.l10n.translate('invalid');
+                          }
+                          return null;
+                        }),
                     const SizedBox(height: 24),
                     PrimaryButton(
                       text: context.l10n.translate('add_debt'),
@@ -1533,12 +1741,13 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                         if (!formKey.currentState!.validate()) return;
                         setModalState(() => isLoading = true);
                         try {
+                          final rawDebtAmount = _extractDigitsStatic(
+                              amountController.text.trim());
                           await _debtorService.addDebtItem(
                               debtorId: widget.debtor.id,
                               userId: authProvider.userId!,
                               product: productController.text.trim(),
-                              amount:
-                                  double.parse(amountController.text.trim()),
+                              amount: double.parse(rawDebtAmount),
                               debtorName: widget.debtor.name,
                               addedByUserName:
                                   authProvider.userModel?.fullName);
@@ -1948,7 +2157,7 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
   void _showEditDebtDialog(
       DebtItemModel item, DebtorModel debtor, String userId) {
     final amountController =
-        TextEditingController(text: item.amount.toString());
+        TextEditingController(text: _formatFullAmount(item.amount));
     final formKey = GlobalKey<FormState>();
     showModalBottomSheet(
       context: context,
@@ -1997,17 +2206,40 @@ class _DebtorDetailsScreenState extends State<DebtorDetailsScreen>
                         controller: amountController,
                         prefixIcon: Icons.attach_money,
                         keyboardType: TextInputType.number,
-                        validator: (v) => v?.isEmpty == true
-                            ? context.l10n.translate('required')
-                            : null),
+                        onChanged: (value) {
+                          // Format with thousand separators as user types
+                          final rawNumber = _extractDigitsStatic(value);
+                          if (rawNumber.isNotEmpty) {
+                            final formatted =
+                                _formatFullAmount(double.parse(rawNumber));
+                            if (formatted != value) {
+                              amountController.value = TextEditingValue(
+                                text: formatted,
+                                selection: TextSelection.collapsed(
+                                    offset: formatted.length),
+                              );
+                            }
+                          }
+                        },
+                        validator: (v) {
+                          if (v?.isEmpty == true)
+                            return context.l10n.translate('required');
+                          final rawNumber = _extractDigitsStatic(v!);
+                          if (rawNumber.isEmpty ||
+                              double.tryParse(rawNumber) == null) {
+                            return context.l10n.translate('invalid');
+                          }
+                          return null;
+                        }),
                     const SizedBox(height: 24),
                     PrimaryButton(
                         text: context.l10n.save,
                         isLoading: isLoading,
                         onPressed: () async {
                           if (!formKey.currentState!.validate()) return;
-                          final newAmount =
-                              double.tryParse(amountController.text.trim());
+                          final rawNumber = _extractDigitsStatic(
+                              amountController.text.trim());
+                          final newAmount = double.tryParse(rawNumber);
                           if (newAmount == null) return;
                           setModalState(() => isLoading = true);
                           try {

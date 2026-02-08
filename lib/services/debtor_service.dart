@@ -30,6 +30,50 @@ class DebtorService {
   CollectionReference get _debtItemsCollection =>
       _firestore.collection('debt_items');
 
+  // Check if debtor with same name exists
+  Future<bool> debtorExists(String userId, String name) async {
+    try {
+      final normalizedName = name.trim().toLowerCase();
+      final snapshot =
+          await _debtorsCollection.where('userId', isEqualTo: userId).get();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final existingName =
+            (data['name'] ?? '').toString().trim().toLowerCase();
+        if (existingName == normalizedName) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error checking debtor exists: $e');
+      return false;
+    }
+  }
+
+  // Get existing debtor by name
+  Future<DebtorModel?> getDebtorByName(String userId, String name) async {
+    try {
+      final normalizedName = name.trim().toLowerCase();
+      final snapshot =
+          await _debtorsCollection.where('userId', isEqualTo: userId).get();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final existingName =
+            (data['name'] ?? '').toString().trim().toLowerCase();
+        if (existingName == normalizedName) {
+          return DebtorModel.fromFirestore(doc);
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error getting debtor by name: $e');
+      return null;
+    }
+  }
+
   // Add a new debtor (just name, no initial debt)
   Future<DebtorModel> addDebtor({
     required String userId,
@@ -41,6 +85,12 @@ class DebtorService {
     final now = DateTime.now();
 
     try {
+      // Check if debtor already exists
+      final exists = await debtorExists(userId, name);
+      if (exists) {
+        throw Exception('DEBTOR_EXISTS');
+      }
+
       final docRef = await _debtorsCollection.add({
         'userId': userId,
         'name': name,

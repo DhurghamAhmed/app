@@ -130,6 +130,7 @@ class AppLocalizations {
       'delete_debt_confirm': 'Are you sure you want to delete this debt?',
       'unknown': 'Unknown',
       'no_description': 'No description',
+      'debtor_already_exists': 'A debtor with this name already exists!',
 
       // Transactions
       'transactions': 'Transactions',
@@ -244,7 +245,8 @@ class AppLocalizations {
       'scan_product_barcode': 'Scan product barcode to add',
       'product_not_found_barcode': 'Product not found in inventory',
       'barcode_not_found': 'Barcode Not Found',
-      'barcode_not_in_inventory': 'This barcode is not registered in your inventory.',
+      'barcode_not_in_inventory':
+          'This barcode is not registered in your inventory.',
       'try_again': 'Try Again',
 
       // Inventory
@@ -314,6 +316,17 @@ class AppLocalizations {
       'results_found': 'results found',
       'no_products_found': 'No products found',
       'try_different_search': 'Try a different search term',
+      'create_custom_barcode': 'Create Custom Barcode',
+      'create_custom_barcode_desc': 'Create a product with a unique barcode',
+      'generated_barcode': 'Generated Barcode',
+      'create_and_save': 'Create & Save',
+      'product_created_successfully': 'Product created with custom barcode!',
+      'failed_create_product': 'Failed to create product',
+      'enter_product_details':
+          'Enter product details to create a custom barcode',
+      'custom_barcode_id': 'Custom Barcode ID',
+      'product_barcode': 'Product Barcode',
+      'show_barcode': 'Show Barcode',
 
       // Notifications
       'notifications': 'Notifications',
@@ -481,6 +494,7 @@ class AppLocalizations {
       'delete_debt_confirm': 'هل أنت متأكد من حذف هذا الدين؟',
       'unknown': 'غير معروف',
       'no_description': 'لا يوجد وصف',
+      'debtor_already_exists': 'يوجد مدين بهذا الاسم بالفعل!',
 
       // Transactions
       'transactions': 'المعاملات',
@@ -663,6 +677,16 @@ class AppLocalizations {
       'results_found': 'نتيجة',
       'no_products_found': 'لم يتم العثور على منتجات',
       'try_different_search': 'جرب كلمة بحث مختلفة',
+      'create_custom_barcode': 'إنشاء باركود مخصص',
+      'create_custom_barcode_desc': 'إنشاء منتج بباركود فريد',
+      'generated_barcode': 'الباركود المُنشأ',
+      'create_and_save': 'إنشاء وحفظ',
+      'product_created_successfully': 'تم إنشاء المنتج بباركود مخصص!',
+      'failed_create_product': 'فشل في إنشاء المنتج',
+      'enter_product_details': 'أدخل تفاصيل المنتج لإنشاء باركود مخصص',
+      'custom_barcode_id': 'رقم الباركود المخصص',
+      'product_barcode': 'باركود المنتج',
+      'show_barcode': 'عرض الباركود',
 
       // Notifications
       'notifications': 'الإشعارات',
