@@ -73,12 +73,9 @@ class TransactionService {
     }
   }
 
-  // Stream all transactions for a user (simplified - no orderBy to avoid index)
+  // Stream all transactions (shared across all users)
   Stream<List<TransactionModel>> streamTransactions(String userId) {
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       debugPrint('Transactions snapshot: ${snapshot.docs.length} documents');
       final transactions = snapshot.docs
           .map((doc) {
@@ -102,15 +99,12 @@ class TransactionService {
     });
   }
 
-  // Stream today's transactions
+  // Stream today's transactions (shared across all users)
   Stream<List<TransactionModel>> streamTodayTransactions(String userId) {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
 
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       final transactions = snapshot.docs
           .map((doc) {
             try {
@@ -134,12 +128,9 @@ class TransactionService {
     });
   }
 
-  // Stream sales transactions only
+  // Stream sales transactions only (shared across all users)
   Stream<List<TransactionModel>> streamSalesTransactions(String userId) {
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       final transactions = snapshot.docs
           .map((doc) {
             try {
@@ -162,12 +153,9 @@ class TransactionService {
     });
   }
 
-  // Stream debtor transactions (debt + payment + edit)
+  // Stream debtor transactions (debt + payment + edit) (shared across all users)
   Stream<List<TransactionModel>> streamDebtorTransactions(String userId) {
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       final transactions = snapshot.docs
           .map((doc) {
             try {
@@ -193,15 +181,12 @@ class TransactionService {
     });
   }
 
-  // Get today's sales count
+  // Get today's sales count (shared across all users)
   Stream<int> streamTodaySalesCount(String userId) {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
 
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       return snapshot.docs
           .map((doc) {
             try {
@@ -222,15 +207,12 @@ class TransactionService {
     });
   }
 
-  // Get today's sales total
+  // Get today's sales total (shared across all users)
   Stream<double> streamTodaySalesTotal(String userId) {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
 
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       double total = 0;
       for (var doc in snapshot.docs) {
         try {
@@ -255,9 +237,7 @@ class TransactionService {
   Future<void> deleteSalesTransactionsForList(
       String userId, String listId) async {
     try {
-      final snapshot = await _transactionsCollection
-          .where('userId', isEqualTo: userId)
-          .get();
+      final snapshot = await _transactionsCollection.get();
 
       final batch = _firestore.batch();
       int count = 0;
@@ -289,9 +269,7 @@ class TransactionService {
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
 
-      final snapshot = await _transactionsCollection
-          .where('userId', isEqualTo: userId)
-          .get();
+      final snapshot = await _transactionsCollection.get();
 
       final batch = _firestore.batch();
       int count = 0;
@@ -318,15 +296,12 @@ class TransactionService {
     }
   }
 
-  // Get today's payments total
+  // Get today's payments total (shared across all users)
   Stream<double> streamTodayPaymentsTotal(String userId) {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
 
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       double total = 0;
       for (var doc in snapshot.docs) {
         try {
@@ -347,15 +322,12 @@ class TransactionService {
     });
   }
 
-  // Get monthly sales total
+  // Get monthly sales total (shared across all users)
   Stream<double> streamMonthlySalesTotal(String userId) {
     final now = DateTime.now();
     final startOfMonth = DateTime(now.year, now.month, 1);
 
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       double total = 0;
       for (var doc in snapshot.docs) {
         try {
@@ -376,15 +348,12 @@ class TransactionService {
     });
   }
 
-  // Get today's transactions count
+  // Get today's transactions count (shared across all users)
   Stream<int> streamTodayTransactionsCount(String userId) {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
 
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       return snapshot.docs
           .map((doc) {
             try {
@@ -405,12 +374,9 @@ class TransactionService {
     });
   }
 
-  // Get last sale
+  // Get last sale (shared across all users)
   Stream<Map<String, dynamic>?> streamLastSale(String userId) {
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _transactionsCollection.snapshots().map((snapshot) {
       final sales = snapshot.docs
           .map((doc) {
             try {
@@ -439,12 +405,10 @@ class TransactionService {
     });
   }
 
-  // Clean up old transactions if limit is enabled
+  // Clean up old transactions if limit is enabled (shared across all users)
   Future<void> cleanupOldTransactions(String userId, int maxCount) async {
     try {
-      final snapshot = await _transactionsCollection
-          .where('userId', isEqualTo: userId)
-          .get();
+      final snapshot = await _transactionsCollection.get();
 
       if (snapshot.docs.length <= maxCount) {
         debugPrint(
@@ -499,14 +463,11 @@ class TransactionService {
     String debtorId,
   ) {
     debugPrint(
-        'Streaming debtor history for userId: $userId, debtorId: $debtorId');
+        'Streaming debtor history for debtorId: $debtorId (shared across all users)');
 
-    // Use only userId filter and filter by referenceId in memory to avoid composite index requirement
-    return _transactionsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
-      debugPrint('Total transactions for user: ${snapshot.docs.length}');
+    // Filter by referenceId in memory to avoid composite index requirement
+    return _transactionsCollection.snapshots().map((snapshot) {
+      debugPrint('Total transactions: ${snapshot.docs.length}');
 
       final transactions = snapshot.docs
           .map((doc) {

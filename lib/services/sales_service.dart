@@ -16,14 +16,12 @@ class SalesService {
   CollectionReference get _monthlySalesCollection =>
       _firestore.collection('monthly_sales');
 
-  // Create a new sales list (only if no open list exists)
+  // Create a new sales list (only if no open list exists) - shared across all users
   Future<SalesListModel?> openNewSalesList(String userId) async {
     try {
-      // Check if there's already an open list
-      final existingOpen = await _salesListsCollection
-          .where('userId', isEqualTo: userId)
-          .where('isOpen', isEqualTo: true)
-          .get();
+      // Check if there's already an open list (shared across all users)
+      final existingOpen =
+          await _salesListsCollection.where('isOpen', isEqualTo: true).get();
 
       if (existingOpen.docs.isNotEmpty) {
         // Return existing open list
@@ -256,10 +254,9 @@ class SalesService {
     }
   }
 
-  // Get current open list for user
+  // Get current open list (shared across all users)
   Stream<SalesListModel?> streamOpenList(String userId) {
     return _salesListsCollection
-        .where('userId', isEqualTo: userId)
         .where('isOpen', isEqualTo: true)
         .limit(1)
         .snapshots()
@@ -277,12 +274,9 @@ class SalesService {
     });
   }
 
-  // Stream all sales lists for user (simplified - no orderBy to avoid index)
+  // Stream all sales lists (shared across all users)
   Stream<List<SalesListModel>> streamAllLists(String userId) {
-    return _salesListsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _salesListsCollection.snapshots().map((snapshot) {
       debugPrint('Sales lists snapshot: ${snapshot.docs.length} documents');
       final lists = snapshot.docs
           .map((doc) {
@@ -306,12 +300,9 @@ class SalesService {
     });
   }
 
-  // Stream closed lists only (simplified - no orderBy to avoid index)
+  // Stream closed lists only (shared across all users)
   Stream<List<SalesListModel>> streamClosedLists(String userId) {
-    return _salesListsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _salesListsCollection.snapshots().map((snapshot) {
       final lists = snapshot.docs
           .map((doc) {
             try {
@@ -474,7 +465,7 @@ class SalesService {
     }
   }
 
-  // Clean up old closed sales lists - keep current month and previous month only
+  // Clean up old closed sales lists - keep current month and previous month only (shared across all users)
   Future<void> cleanupOldSalesLists(String userId) async {
     try {
       final now = DateTime.now();
@@ -489,11 +480,9 @@ class SalesService {
       debugPrint(
           'Keeping lists from: ${previousMonth.month}/${previousMonth.year} and ${now.month}/${now.year}');
 
-      // Get all closed lists for the user
-      final snapshot = await _salesListsCollection
-          .where('userId', isEqualTo: userId)
-          .where('isOpen', isEqualTo: false)
-          .get();
+      // Get all closed lists (shared across all users)
+      final snapshot =
+          await _salesListsCollection.where('isOpen', isEqualTo: false).get();
 
       final listsToDelete = <DocumentSnapshot>[];
 
@@ -568,15 +557,12 @@ class SalesService {
     });
   }
 
-  // Get today's sales total from all lists
+  // Get today's sales total from all lists (shared across all users)
   Stream<double> streamTodaySalesTotal(String userId) {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
 
-    return _salesListsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _salesListsCollection.snapshots().map((snapshot) {
       double total = 0;
       for (var doc in snapshot.docs) {
         try {

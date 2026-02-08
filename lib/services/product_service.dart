@@ -9,13 +9,12 @@ class ProductService {
   CollectionReference<Map<String, dynamic>> get _productsCollection =>
       _firestore.collection('products');
 
-  /// Get product by barcode ID for a specific user
+  /// Get product by barcode ID (shared across all users)
   Future<ProductModel?> getProductByBarcodeId(
       String barcodeId, String userId) async {
     try {
       final querySnapshot = await _productsCollection
           .where('barcodeId', isEqualTo: barcodeId)
-          .where('userId', isEqualTo: userId)
           .limit(1)
           .get();
 
@@ -116,12 +115,9 @@ class ProductService {
     }
   }
 
-  /// Stream all products for a user
+  /// Stream all products (shared across all users)
   Stream<List<ProductModel>> streamProducts(String userId) {
-    return _productsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _productsCollection.snapshots().map((snapshot) {
       final products =
           snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList();
       // Sort locally to avoid needing a composite index

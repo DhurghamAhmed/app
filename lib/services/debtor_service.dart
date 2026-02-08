@@ -30,12 +30,11 @@ class DebtorService {
   CollectionReference get _debtItemsCollection =>
       _firestore.collection('debt_items');
 
-  // Check if debtor with same name exists
+  // Check if debtor with same name exists (shared across all users)
   Future<bool> debtorExists(String userId, String name) async {
     try {
       final normalizedName = name.trim().toLowerCase();
-      final snapshot =
-          await _debtorsCollection.where('userId', isEqualTo: userId).get();
+      final snapshot = await _debtorsCollection.get();
 
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
@@ -52,12 +51,11 @@ class DebtorService {
     }
   }
 
-  // Get existing debtor by name
+  // Get existing debtor by name (shared across all users)
   Future<DebtorModel?> getDebtorByName(String userId, String name) async {
     try {
       final normalizedName = name.trim().toLowerCase();
-      final snapshot =
-          await _debtorsCollection.where('userId', isEqualTo: userId).get();
+      final snapshot = await _debtorsCollection.get();
 
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
@@ -449,12 +447,9 @@ class DebtorService {
     }
   }
 
-  // Stream all debtors for a user (sorted by amount - highest first)
+  // Stream all debtors (shared across all users - sorted by amount - highest first)
   Stream<List<DebtorModel>> streamDebtors(String userId) {
-    return _debtorsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _debtorsCollection.snapshots().map((snapshot) {
       debugPrint(
           'Debtors snapshot received: ${snapshot.docs.length} documents');
       final debtors = snapshot.docs
@@ -478,12 +473,9 @@ class DebtorService {
     });
   }
 
-  // Stream top debtors
+  // Stream top debtors (shared across all users)
   Stream<List<DebtorModel>> streamTopDebtors(String userId, {int limit = 3}) {
-    return _debtorsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _debtorsCollection.snapshots().map((snapshot) {
       final debtors = snapshot.docs
           .map((doc) {
             try {
@@ -504,12 +496,9 @@ class DebtorService {
     });
   }
 
-  // Get total debtors count
+  // Get total debtors count (shared across all users)
   Stream<int> streamDebtorsCount(String userId) {
-    return _debtorsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _debtorsCollection.snapshots().map((snapshot) {
       return snapshot.docs.where((doc) {
         final data = doc.data() as Map<String, dynamic>;
         return (data['amount'] ?? 0).toDouble() > 0;
@@ -520,12 +509,9 @@ class DebtorService {
     });
   }
 
-  // Get total debt amount
+  // Get total debt amount (shared across all users)
   Stream<double> streamTotalDebt(String userId) {
-    return _debtorsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _debtorsCollection.snapshots().map((snapshot) {
       double total = 0;
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
@@ -538,12 +524,9 @@ class DebtorService {
     });
   }
 
-  // Get last added debtor
+  // Get last added debtor (shared across all users)
   Stream<DebtorModel?> streamLastDebtor(String userId) {
-    return _debtorsCollection
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snapshot) {
+    return _debtorsCollection.snapshots().map((snapshot) {
       if (snapshot.docs.isEmpty) return null;
 
       final debtors = snapshot.docs
